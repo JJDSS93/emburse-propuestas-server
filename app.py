@@ -107,7 +107,7 @@ def generar():
         leyenda_opc   = (datos.get('leyenda_opc') or '').strip()
 
         def fmt(n):
-            sym = '$' if moneda in ('USD','MXN') else '€'
+            sym = '$' if moneda in ('USD','MXN','COP') else '€'
             return f"{sym}{float(n):,.2f} {moneda}"
 
         prs = Presentation(io.BytesIO(pptx_file.read()))
