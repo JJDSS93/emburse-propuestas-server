@@ -1,41 +1,72 @@
 from flask import Flask, request, jsonify, send_file
-import zipfile, io, json
+from pptx import Presentation
+from pptx.util import Pt, Emu
+from pptx.dml.color import RGBColor
+from pptx.enum.text import PP_ALIGN
+import io, json
 
 app = Flask(__name__)
 
-def esc(s):
-    return str(s or '').replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace('"','&quot;')
+def hex_color(h):
+    return RGBColor(int(h[0:2],16), int(h[2:4],16), int(h[4:6],16))
 
-NS = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main"'
+AZUL   = hex_color('0D2240')
+AZUL2  = hex_color('1E6DB5')
+BLANCO = hex_color('FFFFFF')
+GRIS   = hex_color('666666')
+PAR    = hex_color('EDF2F7')
+IMPAR  = hex_color('FFFFFF')
 
-RELS = '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/></Relationships>'
+def clear_slide(slide):
+    for shape in list(slide.shapes):
+        slide.shapes._spTree.remove(shape._element)
 
-def hcell(t):
-    return f'<a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="es-MX" sz="1100" b="1" dirty="0"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:latin typeface="Calibri"/></a:rPr><a:t>{esc(t)}</a:t></a:r></a:p></a:txBody><a:tcPr marL="91440" marR="91440" marT="45720" marB="45720"><a:lnL w="12700"><a:solidFill><a:srgbClr val="0D2240"/></a:solidFill></a:lnL><a:lnR w="12700"><a:solidFill><a:srgbClr val="0D2240"/></a:solidFill></a:lnR><a:lnT w="12700"><a:solidFill><a:srgbClr val="0D2240"/></a:solidFill></a:lnT><a:lnB w="12700"><a:solidFill><a:srgbClr val="0D2240"/></a:solidFill></a:lnB><a:solidFill><a:srgbClr val="0D2240"/></a:solidFill></a:tcPr></a:tc>'
+def add_textbox(slide, text, x, y, w, h, bold=False, size=32, color=None, align=PP_ALIGN.LEFT):
+    if color is None: color = AZUL
+    tb = slide.shapes.add_textbox(Emu(x), Emu(y), Emu(w), Emu(h))
+    tf = tb.text_frame
+    tf.word_wrap = True
+    p = tf.paragraphs[0]
+    p.alignment = align
+    run = p.add_run()
+    run.text = text
+    run.font.bold = bold
+    run.font.size = Pt(size)
+    run.font.color.rgb = color
+    run.font.name = 'Calibri'
+    return tb
 
-def dcell(t, bg):
-    return f'<a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:pPr algn="l"/><a:r><a:rPr lang="es-MX" sz="1100" dirty="0"><a:solidFill><a:srgbClr val="1A2740"/></a:solidFill><a:latin typeface="Calibri"/></a:rPr><a:t>{esc(t)}</a:t></a:r></a:p></a:txBody><a:tcPr marL="91440" marR="91440" marT="45720" marB="45720"><a:lnL w="9525"><a:solidFill><a:srgbClr val="CCCCCC"/></a:solidFill></a:lnL><a:lnR w="9525"><a:solidFill><a:srgbClr val="CCCCCC"/></a:solidFill></a:lnR><a:lnT w="9525"><a:solidFill><a:srgbClr val="CCCCCC"/></a:solidFill></a:lnT><a:lnB w="9525"><a:solidFill><a:srgbClr val="CCCCCC"/></a:solidFill></a:lnB><a:solidFill><a:srgbClr val="{bg}"/></a:solidFill></a:tcPr></a:tc>'
-
-def make_table(x, y, cx, cy, widths, headers, rows):
-    grid = "".join(f'<a:gridCol w="{w}"/>' for w in widths)
-    hrow = f'<a:tr h="450000">{"".join(hcell(h) for h in headers)}</a:tr>'
-    drows = "".join(f'<a:tr h="380000">{"".join(dcell(c, "EDF2F7" if i%2==0 else "FFFFFF") for c in row)}</a:tr>' for i,row in enumerate(rows))
-    return f'<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="300" name="tabla"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></p:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1" bandRow="1"/><a:tblGrid>{grid}</a:tblGrid>{hrow}{drows}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>'
-
-def title_sp(t):
-    return f'<p:sp><p:nvSpPr><p:cNvPr id="200" name="tit"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="304800"/><a:ext cx="8229600" cy="533400"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></p:spPr><p:txBody><a:bodyPr anchor="ctr" bIns="0" lIns="0" rIns="0" tIns="0" wrap="square"><a:noAutofit/></a:bodyPr><a:lstStyle/><a:p><a:pPr algn="l"><a:buNone/></a:pPr><a:r><a:rPr b="1" lang="es-MX" sz="3200" dirty="0"><a:solidFill><a:srgbClr val="0D2240"/></a:solidFill><a:latin typeface="Calibri"/></a:rPr><a:t>{esc(t)}</a:t></a:r></a:p></a:txBody></p:sp>'
-
-def div_sp():
-    return '<p:sp><p:nvSpPr><p:cNvPr id="201" name="div"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="876300"/><a:ext cx="8229600" cy="22860"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:linearGradFill rot="5400000" scaled="0"><a:gsLst><a:gs pos="0"><a:srgbClr val="C8D400"/></a:gs><a:gs pos="50000"><a:srgbClr val="00B4D4"/></a:gs><a:gs pos="100000"><a:srgbClr val="1E4FD8"/></a:gs></a:gsLst></a:linearGradFill></a:solidFill><a:ln><a:noFill/></a:ln></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp>'
-
-def note_sp(id, t, y):
-    return f'<p:sp><p:nvSpPr><p:cNvPr id="{id}" name="n{id}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="{y}"/><a:ext cx="8229600" cy="304800"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></p:spPr><p:txBody><a:bodyPr bIns="0" lIns="91440" rIns="91440" tIns="0" wrap="square"/><a:lstStyle/><a:p><a:pPr algn="l"><a:buNone/></a:pPr><a:r><a:rPr lang="es-MX" sz="1000" i="1" dirty="0"><a:solidFill><a:srgbClr val="666666"/></a:solidFill><a:latin typeface="Calibri"/></a:rPr><a:t>{esc(t)}</a:t></a:r></a:p></a:txBody></p:sp>'
-
-def label_sp(id, t, y):
-    return f'<p:sp><p:nvSpPr><p:cNvPr id="{id}" name="l{id}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="{y}"/><a:ext cx="8229600" cy="304800"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></p:spPr><p:txBody><a:bodyPr bIns="0" lIns="91440" rIns="91440" tIns="0" wrap="square"/><a:lstStyle/><a:p><a:pPr algn="l"><a:buNone/></a:pPr><a:r><a:rPr lang="es-MX" sz="1400" b="1" dirty="0"><a:solidFill><a:srgbClr val="1E6DB5"/></a:solidFill><a:latin typeface="Calibri"/></a:rPr><a:t>{esc(t)}</a:t></a:r></a:p></a:txBody></p:sp>'
-
-def make_slide(shapes):
-    return f'<?xml version="1.0" encoding="UTF-8"?>\n<p:sld {NS} showMasterSp="1" showMasterPhAnim="1"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>{shapes}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr><p:transition spd="med" advClick="1"/></p:sld>'
+def add_table(slide, headers, rows, x, y, w, h, col_widths):
+    n_cols = len(headers)
+    n_rows = len(rows) + 1
+    tbl = slide.shapes.add_table(n_rows, n_cols, Emu(x), Emu(y), Emu(w), Emu(h)).table
+    for i, cw in enumerate(col_widths):
+        tbl.columns[i].width = Emu(cw)
+    for j, ht in enumerate(headers):
+        cell = tbl.cell(0, j)
+        cell.text = ht
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = AZUL
+        p = cell.text_frame.paragraphs[0]
+        p.alignment = PP_ALIGN.CENTER
+        run = p.runs[0]
+        run.font.bold = True
+        run.font.color.rgb = BLANCO
+        run.font.size = Pt(11)
+        run.font.name = 'Calibri'
+    for i, row in enumerate(rows):
+        bg = PAR if i % 2 == 0 else IMPAR
+        for j, val in enumerate(row):
+            cell = tbl.cell(i+1, j)
+            cell.text = str(val)
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = bg
+            p = cell.text_frame.paragraphs[0]
+            p.alignment = PP_ALIGN.LEFT
+            run = p.runs[0]
+            run.font.color.rgb = AZUL
+            run.font.size = Pt(11)
+            run.font.name = 'Calibri'
 
 @app.route('/health')
 def health():
@@ -51,7 +82,6 @@ def generar():
         return resp
 
     try:
-        # Leer PPTX subido
         pptx_file = request.files.get('plantilla')
         if not pptx_file:
             return jsonify({'error': 'No se recibió la plantilla'}), 400
@@ -69,76 +99,82 @@ def generar():
             sym = '$' if moneda in ('USD','MXN') else '€'
             return f"{sym}{float(n):,.2f} {moneda}"
 
+        prs = Presentation(io.BytesIO(pptx_file.read()))
+
         # Licencias
-        lic_h = ["Producto / Licencia", "Volumen", f"Precio unit. ({moneda})", f"Total ({moneda})"]
-        lic_w = [2500000, 1900000, 1900000, 1700000]
-        lic_rows = []
-        for r in licencias:
-            total = (float(r.get('vol') or 0)) * (float(r.get('precio') or 0))
-            lic_rows.append([r.get('nombre',''), str(r.get('vol','')),
-                fmt(r['precio']) if r.get('precio') else '',
-                fmt(total) if r.get('nombre') else ''])
+        lic_rows = [[r.get('nombre',''), str(r.get('vol','')),
+            fmt(r['precio']) if r.get('precio') else '',
+            fmt(float(r.get('vol') or 0)*float(r.get('precio') or 0)) if r.get('nombre') else '']
+            for r in licencias]
 
         # Setup
-        setup_h = ["Servicio", "Descripción", "Tipo de pago", f"Precio ({moneda})"]
-        setup_w = [2000000, 3100000, 1500000, 1629600]
         setup_rows = [[r.get('servicio',''), r.get('descripcion',''), r.get('tipo','Único'),
             fmt(r['precio']) if r.get('precio') else ''] for r in setup]
 
         # Opcionales
-        opc_h = ["Servicio", "Descripción", "Tipo de pago", f"Precio ({moneda})"]
-        opc_w = [2000000, 3100000, 1500000, 1629600]
         opc_rows = [[r.get('servicio',''), r.get('descripcion',''), r.get('tipo','Anual'),
             fmt(r['precio']) if r.get('precio') else ''] for r in opcionales]
 
-        # Resumen
-        lic_total   = sum((float(r.get('vol') or 0))*(float(r.get('precio') or 0)) for r in licencias)
+        # Totales
+        lic_total   = sum(float(r.get('vol') or 0)*float(r.get('precio') or 0) for r in licencias)
         setup_total = sum(float(r.get('precio') or 0) for r in setup)
         opc_total   = sum(float(r.get('precio') or 0) for r in opcionales)
-        res_h = ["Escenario", "Descripción", f"Inversión Año 1 ({moneda})"]
-        res_w = [2300000, 3800000, 2129600]
         res_rows = [
             ["Escenario 1 — Base", "Licencias únicamente", fmt(lic_total)],
             ["Escenario 2 — Completo", "Licencias + Setup & Onboarding", fmt(lic_total+setup_total)],
             ["Escenario 3 — Premium", "Licencias + Setup + Servicios Opcionales", fmt(lic_total+setup_total+opc_total)],
         ]
 
-        notas_lines = [l.strip() for l in notas.split('\n') if l.strip()]
-        notas_shapes = label_sp(400, "Condiciones y notas adicionales:", 2895600)
-        for i, l in enumerate(notas_lines):
-            notas_shapes += note_sp(401+i, "• "+l, 3200400+i*304800)
+        # Slide 19 — Licencias
+        s19 = prs.slides[18]
+        clear_slide(s19)
+        add_textbox(s19, "Licencias", 457200, 304800, 8229600, 533400, bold=True, size=32)
+        add_table(s19, ["Producto / Licencia","Volumen",f"Precio unit. ({moneda})",f"Total ({moneda})"],
+                  lic_rows, 457200, 990600, 8229600, 2200000, [2500000,1900000,1900000,1700000])
+        add_textbox(s19, "* Tarifa anual por usuario activo. Sujeto a contrato.", 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
 
-        patches = {
-            "ppt/slides/slide19.xml": make_slide(title_sp("Licencias")+div_sp()+make_table(457200,990600,8229600,2743200,lic_w,lic_h,lic_rows)+note_sp(400,"* Tarifa anual por usuario activo. Sujeto a contrato.",3810000)),
-            "ppt/slides/slide20.xml": make_slide(title_sp("Setup & Onboarding")+div_sp()+make_table(457200,990600,8229600,2743200,setup_w,setup_h,setup_rows)+note_sp(400,"* Pago único al inicio. No incluye desarrollos adicionales.",3810000)),
-            "ppt/slides/slide21.xml": make_slide(title_sp("Servicios Opcionales")+div_sp()+make_table(457200,990600,8229600,2743200,opc_w,opc_h,opc_rows)+note_sp(400,"* No incluidos en propuesta base. Sujetos a disponibilidad.",3810000)),
-            "ppt/slides/slide22.xml": make_slide(title_sp("Resumen")+div_sp()+make_table(457200,990600,8229600,1800000,res_w,res_h,res_rows)+notas_shapes),
-            "ppt/slides/_rels/slide19.xml.rels": RELS,
-            "ppt/slides/_rels/slide20.xml.rels": RELS,
-            "ppt/slides/_rels/slide21.xml.rels": RELS,
-            "ppt/slides/_rels/slide22.xml.rels": RELS,
-        }
+        # Slide 20 — Setup
+        s20 = prs.slides[19]
+        clear_slide(s20)
+        add_textbox(s20, "Setup & Onboarding", 457200, 304800, 8229600, 533400, bold=True, size=32)
+        add_table(s20, ["Servicio","Descripción","Tipo de pago",f"Precio ({moneda})"],
+                  setup_rows, 457200, 990600, 8229600, 2200000, [2000000,3100000,1500000,1629600])
+        add_textbox(s20, "* Pago único al inicio. No incluye desarrollos adicionales.", 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
 
-        pptx_bytes = pptx_file.read()
+        # Slide 21 — Opcionales
+        s21 = prs.slides[20]
+        clear_slide(s21)
+        add_textbox(s21, "Servicios Opcionales", 457200, 304800, 8229600, 533400, bold=True, size=32)
+        add_table(s21, ["Servicio","Descripción","Tipo de pago",f"Precio ({moneda})"],
+                  opc_rows, 457200, 990600, 8229600, 2200000, [2000000,3100000,1500000,1629600])
+        add_textbox(s21, "* No incluidos en propuesta base. Sujetos a disponibilidad.", 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
+
+        # Slide 22 — Resumen
+        s22 = prs.slides[21]
+        clear_slide(s22)
+        add_textbox(s22, "Resumen", 457200, 304800, 8229600, 533400, bold=True, size=32)
+        add_table(s22, ["Escenario","Descripción",f"Inversión Año 1 ({moneda})"],
+                  res_rows, 457200, 990600, 8229600, 1800000, [2300000,3800000,2129600])
+        add_textbox(s22, "Condiciones y notas adicionales:", 457200, 2895600, 8229600, 304800, bold=True, size=14, color=AZUL2)
+        notas_text = "\n".join(f"• {l.strip()}" for l in notas.split('\n') if l.strip())
+        add_textbox(s22, notas_text, 457200, 3200400, 8229600, 700000, size=10, color=GRIS)
+
         out = io.BytesIO()
-        with zipfile.ZipFile(io.BytesIO(pptx_bytes), 'r') as zin:
-            with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zout:
-                for item in zin.infolist():
-                    if item.filename in patches:
-                        zout.writestr(item, patches[item.filename])
-                    else:
-                        zout.writestr(item, zin.read(item.filename))
-
+        prs.save(out)
         out.seek(0)
+
         fecha_str = (fecha or '').replace('-','')
         filename = f"Propuesta_Emburse_{empresa.replace(' ','_')}_{fecha_str}.pptx"
 
-        resp = send_file(out, mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation',
-                        as_attachment=True, download_name=filename)
+        resp = send_file(out,
+            mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            as_attachment=True, download_name=filename)
         resp.headers['Access-Control-Allow-Origin'] = '*'
         return resp
 
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
