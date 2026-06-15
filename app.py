@@ -102,9 +102,9 @@ def generar():
         opcionales    = datos.get('opcionales', [])
         notas         = datos.get('notas', 'Precios en USD. IVA no incluido. Vigencia 30 días.')
         fecha         = datos.get('fecha', '')
-        leyenda_lic   = datos.get('leyenda_lic', '')
-        leyenda_setup = datos.get('leyenda_setup', '')
-        leyenda_opc   = datos.get('leyenda_opc', '')
+        leyenda_lic   = (datos.get('leyenda_lic') or '').strip()
+        leyenda_setup = (datos.get('leyenda_setup') or '').strip()
+        leyenda_opc   = (datos.get('leyenda_opc') or '').strip()
 
         def fmt(n):
             sym = '$' if moneda in ('USD','MXN') else '€'
@@ -137,24 +137,21 @@ def generar():
         add_textbox(s19, "Licencias", 457200, 304800, 8229600, 533400, bold=True, size=32)
         add_table(s19, ["Producto / Licencia","Volumen",f"Precio unit. ({moneda})",f"Total ({moneda})"],
                   lic_rows, 457200, 990600, 8229600, 2200000, [2500000,1900000,1900000,1700000])
-        if leyenda_lic:
-            add_textbox(s19, leyenda_lic, 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
+        add_textbox(s19, leyenda_lic, 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
 
         s20 = prs.slides[19]
         clear_slide(s20)
         add_textbox(s20, "Setup & Onboarding", 457200, 304800, 8229600, 533400, bold=True, size=32)
         add_table(s20, ["Servicio","Descripción","Tipo de pago",f"Precio ({moneda})"],
                   setup_rows, 457200, 990600, 8229600, 2200000, [2000000,3100000,1500000,1629600])
-        if leyenda_setup:
-            add_textbox(s20, leyenda_setup, 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
+        add_textbox(s20, leyenda_setup, 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
 
         s21 = prs.slides[20]
         clear_slide(s21)
         add_textbox(s21, "Servicios Opcionales", 457200, 304800, 8229600, 533400, bold=True, size=32)
         add_table(s21, ["Servicio","Descripción","Tipo de pago",f"Precio ({moneda})"],
                   opc_rows, 457200, 990600, 8229600, 2200000, [2000000,3100000,1500000,1629600])
-        if leyenda_opc:
-            add_textbox(s21, leyenda_opc, 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
+        add_textbox(s21, leyenda_opc, 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
 
         s22 = prs.slides[21]
         clear_slide(s22)
