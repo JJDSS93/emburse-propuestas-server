@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
 from pptx import Presentation
 from pptx.util import Pt, Emu
 from pptx.dml.color import RGBColor
@@ -6,6 +7,7 @@ from pptx.enum.text import PP_ALIGN
 import io, json
 
 app = Flask(__name__)
+CORS(app)
 
 def hex_color(h):
     return RGBColor(int(h[0:2],16), int(h[2:4],16), int(h[4:6],16))
@@ -87,13 +89,13 @@ def generar():
             return jsonify({'error': 'No se recibió la plantilla'}), 400
 
         datos = json.loads(request.form.get('datos', '{}'))
-        empresa   = datos.get('empresa', 'Cliente')
-        moneda    = datos.get('moneda', 'USD')
-        licencias = datos.get('licencias', [])
-        setup     = datos.get('setup', [])
-        opcionales= datos.get('opcionales', [])
-        notas     = datos.get('notas', 'Precios en USD. IVA no incluido. Vigencia 30 días.')
-        fecha     = datos.get('fecha', '')
+        empresa    = datos.get('empresa', 'Cliente')
+        moneda     = datos.get('moneda', 'USD')
+        licencias  = datos.get('licencias', [])
+        setup      = datos.get('setup', [])
+        opcionales = datos.get('opcionales', [])
+        notas      = datos.get('notas', 'Precios en USD. IVA no incluido. Vigencia 30 días.')
+        fecha      = datos.get('fecha', '')
 
         def fmt(n):
             sym = '$' if moneda in ('USD','MXN') else '€'
@@ -101,21 +103,17 @@ def generar():
 
         prs = Presentation(io.BytesIO(pptx_file.read()))
 
-        # Licencias
         lic_rows = [[r.get('nombre',''), str(r.get('vol','')),
             fmt(r['precio']) if r.get('precio') else '',
             fmt(float(r.get('vol') or 0)*float(r.get('precio') or 0)) if r.get('nombre') else '']
             for r in licencias]
 
-        # Setup
         setup_rows = [[r.get('servicio',''), r.get('descripcion',''), r.get('tipo','Único'),
             fmt(r['precio']) if r.get('precio') else ''] for r in setup]
 
-        # Opcionales
         opc_rows = [[r.get('servicio',''), r.get('descripcion',''), r.get('tipo','Anual'),
             fmt(r['precio']) if r.get('precio') else ''] for r in opcionales]
 
-        # Totales
         lic_total   = sum(float(r.get('vol') or 0)*float(r.get('precio') or 0) for r in licencias)
         setup_total = sum(float(r.get('precio') or 0) for r in setup)
         opc_total   = sum(float(r.get('precio') or 0) for r in opcionales)
@@ -125,7 +123,6 @@ def generar():
             ["Escenario 3 — Premium", "Licencias + Setup + Servicios Opcionales", fmt(lic_total+setup_total+opc_total)],
         ]
 
-        # Slide 19 — Licencias
         s19 = prs.slides[18]
         clear_slide(s19)
         add_textbox(s19, "Licencias", 457200, 304800, 8229600, 533400, bold=True, size=32)
@@ -133,7 +130,6 @@ def generar():
                   lic_rows, 457200, 990600, 8229600, 2200000, [2500000,1900000,1900000,1700000])
         add_textbox(s19, "* Tarifa anual por usuario activo. Sujeto a contrato.", 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
 
-        # Slide 20 — Setup
         s20 = prs.slides[19]
         clear_slide(s20)
         add_textbox(s20, "Setup & Onboarding", 457200, 304800, 8229600, 533400, bold=True, size=32)
@@ -141,7 +137,6 @@ def generar():
                   setup_rows, 457200, 990600, 8229600, 2200000, [2000000,3100000,1500000,1629600])
         add_textbox(s20, "* Pago único al inicio. No incluye desarrollos adicionales.", 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
 
-        # Slide 21 — Opcionales
         s21 = prs.slides[20]
         clear_slide(s21)
         add_textbox(s21, "Servicios Opcionales", 457200, 304800, 8229600, 533400, bold=True, size=32)
@@ -149,7 +144,6 @@ def generar():
                   opc_rows, 457200, 990600, 8229600, 2200000, [2000000,3100000,1500000,1629600])
         add_textbox(s21, "* No incluidos en propuesta base. Sujetos a disponibilidad.", 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
 
-        # Slide 22 — Resumen
         s22 = prs.slides[21]
         clear_slide(s22)
         add_textbox(s22, "Resumen", 457200, 304800, 8229600, 533400, bold=True, size=32)
