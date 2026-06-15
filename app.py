@@ -51,7 +51,10 @@ def add_table(slide, headers, rows, x, y, w, h, col_widths):
         cell.fill.fore_color.rgb = AZUL
         p = cell.text_frame.paragraphs[0]
         p.alignment = PP_ALIGN.CENTER
-        run = p.runs[0]
+        if p.runs:
+            run = p.runs[0]
+        else:
+            run = p.add_run()
         run.font.bold = True
         run.font.color.rgb = BLANCO
         run.font.size = Pt(11)
@@ -65,7 +68,10 @@ def add_table(slide, headers, rows, x, y, w, h, col_widths):
             cell.fill.fore_color.rgb = bg
             p = cell.text_frame.paragraphs[0]
             p.alignment = PP_ALIGN.LEFT
-            run = p.runs[0]
+            if p.runs:
+                run = p.runs[0]
+            else:
+                run = p.add_run()
             run.font.color.rgb = AZUL
             run.font.size = Pt(11)
             run.font.name = 'Calibri'
