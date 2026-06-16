@@ -19,6 +19,9 @@ GRIS   = hex_color('666666')
 PAR    = hex_color('EDF2F7')
 IMPAR  = hex_color('FFFFFF')
 
+ROW_H = Cm(1.0)   # altura fija por fila: 1 cm
+HEAD_H = Cm(1.2)  # altura cabecera: 1.2 cm
+
 def clear_slide(slide):
     for shape in list(slide.shapes):
         slide.shapes._spTree.remove(shape._element)
@@ -38,12 +41,19 @@ def add_textbox(slide, text, x, y, w, h, bold=False, size=32, color=None, align=
     run.font.name = 'Calibri'
     return tb
 
-def add_table(slide, headers, rows, x, y, w, h, col_widths):
+def add_table(slide, headers, rows, x, y, w, col_widths):
     n_cols = len(headers)
     n_rows = len(rows) + 1
-    tbl = slide.shapes.add_table(n_rows, n_cols, Emu(x), Emu(y), Emu(w), Emu(h)).table
+    # Altura dinámica: cabecera + filas de datos
+    h = HEAD_H + ROW_H * len(rows)
+    tbl = slide.shapes.add_table(n_rows, n_cols, Emu(x), Emu(y), Emu(w), h).table
     for i, cw in enumerate(col_widths):
         tbl.columns[i].width = Emu(cw)
+    # Altura de cada fila
+    tbl.rows[0].height = HEAD_H
+    for i in range(1, n_rows):
+        tbl.rows[i].height = ROW_H
+    # Cabecera
     for j, ht in enumerate(headers):
         cell = tbl.cell(0, j)
         cell.text = ht
@@ -59,6 +69,7 @@ def add_table(slide, headers, rows, x, y, w, h, col_widths):
         run.font.color.rgb = BLANCO
         run.font.size = Pt(11)
         run.font.name = 'Calibri'
+    # Filas de datos
     for i, row in enumerate(rows):
         bg = PAR if i % 2 == 0 else IMPAR
         for j, val in enumerate(row):
@@ -75,6 +86,7 @@ def add_table(slide, headers, rows, x, y, w, h, col_widths):
             run.font.color.rgb = AZUL
             run.font.size = Pt(11)
             run.font.name = 'Calibri'
+    return h
 
 @app.route('/health')
 def health():
@@ -112,7 +124,7 @@ def generar():
 
         prs = Presentation(io.BytesIO(pptx_file.read()))
 
-        # Logo en slide 1 — centrado, 5x5 cm
+        # Logo en slide 1 — centrado horizontalmente, bajado 2cm desde el centro vertical
         logo_file = request.files.get('logo')
         if logo_file:
             logo_bytes = io.BytesIO(logo_file.read())
@@ -122,22 +134,20 @@ def generar():
             logo_w = Cm(5)
             logo_h = Cm(5)
             logo_x = (slide_w - logo_w) // 2
-            logo_y = (slide_h - logo_h) // 2 + Cm(1)
-            mime = logo_file.mimetype or ''
-            from pptx.util import Inches
-            import pptx.parts.image as pptx_img
+            logo_y = (slide_h - logo_h) // 2 + Cm(2)
             slide1.shapes.add_picture(logo_bytes, logo_x, logo_y, logo_w, logo_h)
 
+        # Preparar filas — si no hay datos, añadir una fila vacía para que la tabla no quede rara
         lic_rows = [[r.get('nombre',''), str(r.get('vol','')),
             fmt(r['precio']) if r.get('precio') else '',
             fmt(float(r.get('vol') or 0)*float(r.get('precio') or 0)) if r.get('nombre') else '']
-            for r in licencias]
+            for r in licencias] or [['', '', '', '']]
 
         setup_rows = [[r.get('servicio',''), r.get('descripcion',''), r.get('tipo','Único'),
-            fmt(r['precio']) if r.get('precio') else ''] for r in setup]
+            fmt(r['precio']) if r.get('precio') else ''] for r in setup] or [['', '', '', '']]
 
         opc_rows = [[r.get('servicio',''), r.get('descripcion',''), r.get('tipo','Anual'),
-            fmt(r['precio']) if r.get('precio') else ''] for r in opcionales]
+            fmt(r['precio']) if r.get('precio') else ''] for r in opcionales] or [['', '', '', '']]
 
         lic_total   = sum(float(r.get('vol') or 0)*float(r.get('precio') or 0) for r in licencias)
         setup_total = sum(float(r.get('precio') or 0) for r in setup)
@@ -148,35 +158,48 @@ def generar():
             ["Escenario 3 — Premium", "Licencias + Setup + Servicios Opcionales", fmt(lic_total+setup_total+opc_total)],
         ]
 
+        Y_TITULO   = 304800
+        Y_TABLA    = 990600
+        X          = 457200
+        W          = 8229600
+        Y_LEYENDA_OFFSET = Cm(0.4)  # espacio entre tabla y leyenda
+
+        # Slide 19 — Licencias
         s19 = prs.slides[18]
         clear_slide(s19)
-        add_textbox(s19, "Licencias", 457200, 304800, 8229600, 533400, bold=True, size=32)
-        add_table(s19, ["Producto / Licencia","Volumen",f"Precio unit. ({moneda})",f"Total ({moneda})"],
-                  lic_rows, 457200, 990600, 8229600, 2200000, [2500000,1900000,1900000,1700000])
-        add_textbox(s19, leyenda_lic, 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
+        add_textbox(s19, "Licencias", X, Y_TITULO, W, 533400, bold=True, size=32)
+        h19 = add_table(s19, ["Producto / Licencia","Volumen",f"Precio unit. ({moneda})",f"Total ({moneda})"],
+                  lic_rows, X, Y_TABLA, W, [2500000,1900000,1900000,1700000])
+        if leyenda_lic:
+            add_textbox(s19, leyenda_lic, X, Y_TABLA + h19 + Y_LEYENDA_OFFSET, W, 304800, size=10, color=GRIS)
 
+        # Slide 20 — Setup
         s20 = prs.slides[19]
         clear_slide(s20)
-        add_textbox(s20, "Setup & Onboarding", 457200, 304800, 8229600, 533400, bold=True, size=32)
-        add_table(s20, ["Servicio","Descripción","Tipo de pago",f"Precio ({moneda})"],
-                  setup_rows, 457200, 990600, 8229600, 2200000, [2000000,3100000,1500000,1629600])
-        add_textbox(s20, leyenda_setup, 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
+        add_textbox(s20, "Setup & Onboarding", X, Y_TITULO, W, 533400, bold=True, size=32)
+        h20 = add_table(s20, ["Servicio","Descripción","Tipo de pago",f"Precio ({moneda})"],
+                  setup_rows, X, Y_TABLA, W, [2000000,3100000,1500000,1629600])
+        if leyenda_setup:
+            add_textbox(s20, leyenda_setup, X, Y_TABLA + h20 + Y_LEYENDA_OFFSET, W, 304800, size=10, color=GRIS)
 
+        # Slide 21 — Opcionales
         s21 = prs.slides[20]
         clear_slide(s21)
-        add_textbox(s21, "Servicios Opcionales", 457200, 304800, 8229600, 533400, bold=True, size=32)
-        add_table(s21, ["Servicio","Descripción","Tipo de pago",f"Precio ({moneda})"],
-                  opc_rows, 457200, 990600, 8229600, 2200000, [2000000,3100000,1500000,1629600])
-        add_textbox(s21, leyenda_opc, 457200, 3300000, 8229600, 304800, size=10, color=GRIS)
+        add_textbox(s21, "Servicios Opcionales", X, Y_TITULO, W, 533400, bold=True, size=32)
+        h21 = add_table(s21, ["Servicio","Descripción","Tipo de pago",f"Precio ({moneda})"],
+                  opc_rows, X, Y_TABLA, W, [2000000,3100000,1500000,1629600])
+        if leyenda_opc:
+            add_textbox(s21, leyenda_opc, X, Y_TABLA + h21 + Y_LEYENDA_OFFSET, W, 304800, size=10, color=GRIS)
 
+        # Slide 22 — Resumen
         s22 = prs.slides[21]
         clear_slide(s22)
-        add_textbox(s22, "Resumen", 457200, 304800, 8229600, 533400, bold=True, size=32)
-        add_table(s22, ["Escenario","Descripción",f"Inversión Año 1 ({moneda})"],
-                  res_rows, 457200, 990600, 8229600, 1800000, [2300000,3800000,2129600])
-        add_textbox(s22, "Condiciones y notas adicionales:", 457200, 2895600, 8229600, 304800, bold=True, size=14, color=AZUL2)
+        add_textbox(s22, "Resumen", X, Y_TITULO, W, 533400, bold=True, size=32)
+        h22 = add_table(s22, ["Escenario","Descripción",f"Inversión Año 1 ({moneda})"],
+                  res_rows, X, Y_TABLA, W, [2300000,3800000,2129600])
+        add_textbox(s22, "Condiciones y notas adicionales:", X, Y_TABLA + h22 + Y_LEYENDA_OFFSET, W, 304800, bold=True, size=14, color=AZUL2)
         notas_text = "\n".join(f"• {l.strip()}" for l in notas.split('\n') if l.strip())
-        add_textbox(s22, notas_text, 457200, 3200400, 8229600, 700000, size=10, color=GRIS)
+        add_textbox(s22, notas_text, X, Y_TABLA + h22 + Y_LEYENDA_OFFSET + Cm(0.8), W, 700000, size=10, color=GRIS)
 
         out = io.BytesIO()
         prs.save(out)
