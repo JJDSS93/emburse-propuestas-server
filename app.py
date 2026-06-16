@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from pptx import Presentation
-from pptx.util import Pt, Emu
+from pptx.util import Pt, Emu, Cm
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 import io, json
@@ -111,6 +111,22 @@ def generar():
             return f"{sym}{float(n):,.2f} {moneda}"
 
         prs = Presentation(io.BytesIO(pptx_file.read()))
+
+        # Logo en slide 1 — centrado, 5x5 cm
+        logo_file = request.files.get('logo')
+        if logo_file:
+            logo_bytes = io.BytesIO(logo_file.read())
+            slide1 = prs.slides[0]
+            slide_w = prs.slide_width
+            slide_h = prs.slide_height
+            logo_w = Cm(5)
+            logo_h = Cm(5)
+            logo_x = (slide_w - logo_w) // 2
+            logo_y = (slide_h - logo_h) // 2
+            mime = logo_file.mimetype or ''
+            from pptx.util import Inches
+            import pptx.parts.image as pptx_img
+            slide1.shapes.add_picture(logo_bytes, logo_x, logo_y, logo_w, logo_h)
 
         lic_rows = [[r.get('nombre',''), str(r.get('vol','')),
             fmt(r['precio']) if r.get('precio') else '',
