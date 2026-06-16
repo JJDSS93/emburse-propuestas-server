@@ -142,7 +142,7 @@ def generar():
             logo_w = Cm(5)
             logo_h = Cm(5)
             logo_x = (slide_w - logo_w) // 2
-            logo_y = (slide_h - logo_h) // 2 + Cm(2)
+            logo_y = (slide_h - logo_h) // 2 + Cm(1.5)
             slide1.shapes.add_picture(logo_bytes, logo_x, logo_y, logo_w, logo_h)
 
             # Fecha centrada debajo del logo
