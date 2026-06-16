@@ -19,8 +19,8 @@ GRIS   = hex_color('666666')
 PAR    = hex_color('EDF2F7')
 IMPAR  = hex_color('FFFFFF')
 
-ROW_H = Cm(1.0)   # altura fija por fila: 1 cm
-HEAD_H = Cm(1.2)  # altura cabecera: 1.2 cm
+ROW_H  = Cm(1.0)
+HEAD_H = Cm(1.2)
 
 def clear_slide(slide):
     for shape in list(slide.shapes):
@@ -44,16 +44,13 @@ def add_textbox(slide, text, x, y, w, h, bold=False, size=32, color=None, align=
 def add_table(slide, headers, rows, x, y, w, col_widths):
     n_cols = len(headers)
     n_rows = len(rows) + 1
-    # Altura dinámica: cabecera + filas de datos
     h = HEAD_H + ROW_H * len(rows)
     tbl = slide.shapes.add_table(n_rows, n_cols, Emu(x), Emu(y), Emu(w), h).table
     for i, cw in enumerate(col_widths):
         tbl.columns[i].width = Emu(cw)
-    # Altura de cada fila
     tbl.rows[0].height = HEAD_H
     for i in range(1, n_rows):
         tbl.rows[i].height = ROW_H
-    # Cabecera
     for j, ht in enumerate(headers):
         cell = tbl.cell(0, j)
         cell.text = ht
@@ -69,7 +66,6 @@ def add_table(slide, headers, rows, x, y, w, col_widths):
         run.font.color.rgb = BLANCO
         run.font.size = Pt(11)
         run.font.name = 'Calibri'
-    # Filas de datos
     for i, row in enumerate(rows):
         bg = PAR if i % 2 == 0 else IMPAR
         for j, val in enumerate(row):
@@ -124,7 +120,6 @@ def generar():
 
         prs = Presentation(io.BytesIO(pptx_file.read()))
 
-        # Logo en slide 1 — centrado horizontalmente, bajado 2cm desde el centro vertical
         logo_file = request.files.get('logo')
         if logo_file:
             logo_bytes = io.BytesIO(logo_file.read())
@@ -134,10 +129,9 @@ def generar():
             logo_w = Cm(5)
             logo_h = Cm(5)
             logo_x = (slide_w - logo_w) // 2
-            logo_y = (slide_h - logo_h) // 2 + Cm(1.5)
+            logo_y = (slide_h - logo_h) // 2 + Cm(2)
             slide1.shapes.add_picture(logo_bytes, logo_x, logo_y, logo_w, logo_h)
 
-        # Preparar filas — si no hay datos, añadir una fila vacía para que la tabla no quede rara
         lic_rows = [[r.get('nombre',''), str(r.get('vol','')),
             fmt(r['precio']) if r.get('precio') else '',
             fmt(float(r.get('vol') or 0)*float(r.get('precio') or 0)) if r.get('nombre') else '']
@@ -158,13 +152,12 @@ def generar():
             ["Pago anual más servicios más opcionales", "Licencias + Setup + Servicios Opcionales", fmt(lic_total+setup_total+opc_total)],
         ]
 
-        Y_TITULO   = 304800
-        Y_TABLA    = 990600
-        X          = 457200
-        W          = 8229600
-        Y_LEYENDA_OFFSET = Cm(0.4)  # espacio entre tabla y leyenda
+        Y_TITULO        = 304800
+        Y_TABLA         = 990600
+        X               = 457200
+        W               = 8229600
+        Y_LEYENDA_OFFSET = Cm(0.4)
 
-        # Slide 19 — Licencias
         s19 = prs.slides[18]
         clear_slide(s19)
         add_textbox(s19, "Licencias", X, Y_TITULO, W, 533400, bold=True, size=32)
@@ -173,7 +166,6 @@ def generar():
         if leyenda_lic:
             add_textbox(s19, leyenda_lic, X, Y_TABLA + h19 + Y_LEYENDA_OFFSET, W, 304800, size=10, color=GRIS)
 
-        # Slide 20 — Setup
         s20 = prs.slides[19]
         clear_slide(s20)
         add_textbox(s20, "Setup & Onboarding", X, Y_TITULO, W, 533400, bold=True, size=32)
@@ -182,7 +174,6 @@ def generar():
         if leyenda_setup:
             add_textbox(s20, leyenda_setup, X, Y_TABLA + h20 + Y_LEYENDA_OFFSET, W, 304800, size=10, color=GRIS)
 
-        # Slide 21 — Opcionales
         s21 = prs.slides[20]
         clear_slide(s21)
         add_textbox(s21, "Servicios Opcionales", X, Y_TITULO, W, 533400, bold=True, size=32)
@@ -191,7 +182,6 @@ def generar():
         if leyenda_opc:
             add_textbox(s21, leyenda_opc, X, Y_TABLA + h21 + Y_LEYENDA_OFFSET, W, 304800, size=10, color=GRIS)
 
-        # Slide 22 — Resumen
         s22 = prs.slides[21]
         clear_slide(s22)
         add_textbox(s22, "Resumen", X, Y_TITULO, W, 533400, bold=True, size=32)
