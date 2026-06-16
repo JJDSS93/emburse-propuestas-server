@@ -153,9 +153,9 @@ def generar():
         setup_total = sum(float(r.get('precio') or 0) for r in setup)
         opc_total   = sum(float(r.get('precio') or 0) for r in opcionales)
         res_rows = [
-            ["Escenario 1 — Base", "Licencias únicamente", fmt(lic_total)],
-            ["Escenario 2 — Completo", "Licencias + Setup & Onboarding", fmt(lic_total+setup_total)],
-            ["Escenario 3 — Premium", "Licencias + Setup + Servicios Opcionales", fmt(lic_total+setup_total+opc_total)],
+            ["Pago anual recurrente", "Licencias únicamente", fmt(lic_total)],
+            ["Pago anual más servicios (sólo primer año)", "Licencias + Setup & Onboarding", fmt(lic_total+setup_total)],
+            ["Pago anual más servicios más opcionales", "Licencias + Setup + Servicios Opcionales", fmt(lic_total+setup_total+opc_total)],
         ]
 
         Y_TITULO   = 304800
