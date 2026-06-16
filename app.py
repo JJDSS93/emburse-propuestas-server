@@ -4,7 +4,7 @@ from pptx import Presentation
 from pptx.util import Pt, Emu, Cm
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
-import io, json
+import io, json, datetime
 
 app = Flask(__name__)
 CORS(app)
@@ -84,6 +84,17 @@ def add_table(slide, headers, rows, x, y, w, col_widths):
             run.font.name = 'Calibri'
     return h
 
+MESES = ['enero','febrero','marzo','abril','mayo','junio',
+         'julio','agosto','septiembre','octubre','noviembre','diciembre']
+
+def fecha_legible(fecha_str):
+    try:
+        d = datetime.date.fromisoformat(fecha_str)
+        return f"{d.day} de {MESES[d.month-1]} de {d.year}"
+    except:
+        hoy = datetime.date.today()
+        return f"{hoy.day} de {MESES[hoy.month-1]} de {hoy.year}"
+
 @app.route('/health')
 def health():
     return jsonify({'status': 'ok'})
@@ -120,17 +131,35 @@ def generar():
 
         prs = Presentation(io.BytesIO(pptx_file.read()))
 
+        # Logo + fecha en slide 1
         logo_file = request.files.get('logo')
+        slide1 = prs.slides[0]
+        slide_w = prs.slide_width
+        slide_h = prs.slide_height
+
         if logo_file:
             logo_bytes = io.BytesIO(logo_file.read())
-            slide1 = prs.slides[0]
-            slide_w = prs.slide_width
-            slide_h = prs.slide_height
             logo_w = Cm(5)
             logo_h = Cm(5)
             logo_x = (slide_w - logo_w) // 2
             logo_y = (slide_h - logo_h) // 2 + Cm(2)
             slide1.shapes.add_picture(logo_bytes, logo_x, logo_y, logo_w, logo_h)
+
+            # Fecha centrada debajo del logo
+            fecha_txt = fecha_legible(fecha)
+            fecha_w = Cm(12)
+            fecha_x = (slide_w - fecha_w) // 2
+            fecha_y = logo_y + logo_h + Cm(0.4)
+            add_textbox(slide1, fecha_txt, fecha_x, fecha_y, fecha_w, Cm(1.2),
+                        bold=False, size=16, color=AZUL, align=PP_ALIGN.CENTER)
+        else:
+            # Sin logo — solo fecha centrada verticalmente en la zona inferior
+            fecha_txt = fecha_legible(fecha)
+            fecha_w = Cm(12)
+            fecha_x = (slide_w - fecha_w) // 2
+            fecha_y = slide_h // 2 + Cm(4)
+            add_textbox(slide1, fecha_txt, fecha_x, fecha_y, fecha_w, Cm(1.2),
+                        bold=False, size=16, color=AZUL, align=PP_ALIGN.CENTER)
 
         lic_rows = [[r.get('nombre',''), str(r.get('vol','')),
             fmt(r['precio']) if r.get('precio') else '',
@@ -152,10 +181,10 @@ def generar():
             ["Pago anual más servicios más opcionales", "Licencias + Setup + Servicios Opcionales", fmt(lic_total+setup_total+opc_total)],
         ]
 
-        Y_TITULO        = 304800
-        Y_TABLA         = 990600
-        X               = 457200
-        W               = 8229600
+        Y_TITULO         = 304800
+        Y_TABLA          = 990600
+        X                = 457200
+        W                = 8229600
         Y_LEYENDA_OFFSET = Cm(0.4)
 
         s19 = prs.slides[18]
