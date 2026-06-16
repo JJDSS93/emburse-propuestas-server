@@ -151,7 +151,7 @@ def generar():
             fecha_x = (slide_w - fecha_w) // 2
             fecha_y = logo_y + logo_h + Cm(0.4)
             add_textbox(slide1, fecha_txt, fecha_x, fecha_y, fecha_w, Cm(1.2),
-                        bold=False, size=16, color=AZUL, align=PP_ALIGN.CENTER)
+                        bold=True, size=16, color=BLANCO, align=PP_ALIGN.CENTER)
         else:
             # Sin logo — solo fecha centrada verticalmente en la zona inferior
             fecha_txt = fecha_legible(fecha)
@@ -159,7 +159,7 @@ def generar():
             fecha_x = (slide_w - fecha_w) // 2
             fecha_y = slide_h // 2 + Cm(4)
             add_textbox(slide1, fecha_txt, fecha_x, fecha_y, fecha_w, Cm(1.2),
-                        bold=False, size=16, color=AZUL, align=PP_ALIGN.CENTER)
+                        bold=True, size=16, color=BLANCO, align=PP_ALIGN.CENTER)
 
         lic_rows = [[r.get('nombre',''), str(r.get('vol','')),
             fmt(r['precio']) if r.get('precio') else '',
